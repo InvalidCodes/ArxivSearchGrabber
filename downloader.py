@@ -17,7 +17,7 @@ def download_pdf(url, title, save_dir, retries=3, delay=5):
             with open(file_path, "wb") as f:
                 for chunk in response.iter_content(chunk_size=8192):
                     f.write(chunk)
-            print(f"Downloaded: {safe_title}.pdf")
+            print(f"== Downloaded: {safe_title}.pdf")
             return
         except Exception as e:
             print(f"Attempt {attempt+1} failed for {title}: {e}")
@@ -71,7 +71,7 @@ def main():
         pdf_url = result.pdf_url
         title = result.title
         abstract = result.summary[:200]
-        print(f"Found: {title}")
+        print(f"== Found: {title}")
         print(f"Abstract: {abstract}...")
         download_pdf(pdf_url, title, save_dir, retries=3, delay=5)
         time.sleep(2)
