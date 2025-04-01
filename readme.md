@@ -2,6 +2,10 @@
 
 A simple tool to batch download ArXiv PDFs based on a search query. Yahoo~~~
 
+你是否有arxiv标签堆满浏览器的烦恼？你是否有下载文档名是一串数字，完全分不清文献的烦恼？别担心，Arxiv Search Grabber 来帮忙！
+
+只需一个命令行窗口，即可完成搜索 - 批量下载 - 自动更改文档名为文章名！
+
 ## Features
 - Search and download papers from ArXiv.
 - Name files by article titles.
