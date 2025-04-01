@@ -18,19 +18,18 @@ def download_pdf(url, title, save_dir):
         print(f"Error downloading {title}: {e}")
 
 def main():
-    # 设置命令行参数
     parser = argparse.ArgumentParser(description="Batch download ArXiv PDFs")
     parser.add_argument("--query", type=str, required=True, help="Search query (e.g., 'machine unlearning')")
     parser.add_argument("--max", type=int, default=10, help="Max number of papers to download")
     parser.add_argument("--dir", type=str, default="./downloads", help="Download directory")
     args = parser.parse_args()
 
-    # 创建下载目录
     if not os.path.exists(args.dir):
         os.makedirs(args.dir)
 
-    # 搜索并下载
     print(f"Searching ArXiv for '{args.query}'...")
+    # 创建Client对象
+    client = arxiv.Client()
     search = arxiv.Search(
         query=args.query,
         max_results=args.max,
@@ -38,7 +37,8 @@ def main():
         sort_order=arxiv.SortOrder.Descending
     )
 
-    for result in search.results():
+    # 使用Client.results()替代search.results()
+    for result in client.results(search):
         pdf_url = result.pdf_url
         title = result.title
         print(f"Found: {title}")
