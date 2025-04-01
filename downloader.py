@@ -3,8 +3,33 @@ import requests
 import os
 import time
 import argparse
+import json
 
-def download_pdf(url, title, save_dir, retries=3, delay=5):
+# 历史记录文件
+HISTORY_FILE = "download_history.json"
+
+def load_history():
+    """加载下载历史"""
+    if os.path.exists(HISTORY_FILE):
+        with open(HISTORY_FILE, "r") as f:
+            return json.load(f)
+    return {"arxiv": {}, "scholar": {}}
+
+def save_history(history):
+    """保存下载历史"""
+    with open(HISTORY_FILE, "w") as f:
+        json.dump(history, f, indent=4)
+
+def download_pdf(url, title, save_dir, source, paper_id, history, retries=3, delay=5):
+    """下载PDF并记录历史"""
+    # 检查是否已下载
+    if source == "arxiv" and paper_id in history["arxiv"]:
+        print(f"Skipping {title}: Already downloaded (ArXiv ID: {paper_id})")
+        return False
+    elif source == "scholar" and title in history["scholar"]:
+        print(f"Skipping {title}: Already downloaded (Google Scholar)")
+        return False
+
     for attempt in range(retries):
         try:
             if not os.path.exists(save_dir):
@@ -17,17 +42,60 @@ def download_pdf(url, title, save_dir, retries=3, delay=5):
             with open(file_path, "wb") as f:
                 for chunk in response.iter_content(chunk_size=8192):
                     f.write(chunk)
-            print(f"== Downloaded: {safe_title}.pdf")
-            return
+            print(f"Downloaded: {safe_title}.pdf")
+
+            # 记录到历史
+            if source == "arxiv":
+                history["arxiv"][paper_id] = title
+            elif source == "scholar":
+                history["scholar"][title] = url
+            save_history(history)
+            return True
         except Exception as e:
             print(f"Attempt {attempt+1} failed for {title}: {e}")
             if attempt < retries - 1:
                 time.sleep(delay)
             else:
                 print(f"Failed to download {title} after {retries} attempts.")
+                return False
+
+def search_arxiv(query, max_results, save_dir, history):
+    """搜索并下载ArXiv论文"""
+    print(f"Searching ArXiv for '{query}'...")
+    client = arxiv.Client()
+    formatted_query = f'"{query}"'
+    print(f"Formatted query: {formatted_query}")
+    search = arxiv.Search(
+        query=formatted_query,
+        max_results=max_results
+    )
+
+    results = list(client.results(search))
+    if not results:
+        print("No results found on ArXiv. Trying alternative query format...")
+        formatted_query = f'ti:"{query}" OR abs:"{query}"'
+        print(f"Alternative query: {formatted_query}")
+        search = arxiv.Search(
+            query=formatted_query,
+            max_results=max_results
+        )
+        results = list(client.results(search))
+        if not results:
+            print("Still no results found on ArXiv.")
+            return
+
+    for result in results:
+        pdf_url = result.pdf_url
+        title = result.title
+        arxiv_id = result.entry_id.split("/")[-1]  # 提取ArXiv ID
+        abstract = result.summary[:200]
+        print(f"Found: {title}")
+        print(f"Abstract: {abstract}...")
+        download_pdf(pdf_url, title, save_dir, "arxiv", arxiv_id, history)
+        time.sleep(2)
 
 def main():
-    parser = argparse.ArgumentParser(description="Batch download ArXiv PDFs")
+    parser = argparse.ArgumentParser(description="Batch download PDFs from ArXiv and Google Scholar")
     parser.add_argument("--query", type=str, required=True, help="Search query (e.g., 'machine unlearning')")
     parser.add_argument("--max", type=int, default=10, help="Max number of papers to download")
     parser.add_argument("--dir", type=str, default="./downloads", help="Download directory")
@@ -38,43 +106,11 @@ def main():
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
-    print(f"Searching ArXiv for '{args.query}'...")
-    client = arxiv.Client()
-    # 用引号包裹短语，确保精确匹配
-    formatted_query = f'"{args.query}"'
-    print(f"Formatted query: {formatted_query}")
-    search = arxiv.Search(
-        query=formatted_query,
-        max_results=args.max,
-        # 暂时移除排序，测试是否返回结果
-        # sort_by=arxiv.SortCriterion.SubmittedDate,
-        # sort_order=arxiv.SortOrder.Descending
-    )
+    # 加载下载历史
+    history = load_history()
 
-    # 获取搜索结果
-    results = list(client.results(search))
-    if not results:
-        print("No results found for the query. Trying alternative query format...")
-        # 尝试按标题和摘要分别搜索
-        formatted_query = f'ti:"{args.query}" OR abs:"{args.query}"'
-        print(f"Alternative query: {formatted_query}")
-        search = arxiv.Search(
-            query=formatted_query,
-            max_results=args.max
-        )
-        results = list(client.results(search))
-        if not results:
-            print("Still no results found. Try a different keyword or check your network.")
-            return
-
-    for result in results:
-        pdf_url = result.pdf_url
-        title = result.title
-        abstract = result.summary[:200]
-        print(f"== Found: {title}")
-        print(f"Abstract: {abstract}...")
-        download_pdf(pdf_url, title, save_dir, retries=3, delay=5)
-        time.sleep(2)
+    # 搜索ArXiv
+    search_arxiv(args.query, args.max, save_dir, history)
 
     print(f"Download completed! Files saved in {save_dir}")
 
